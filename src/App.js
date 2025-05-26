@@ -32,10 +32,10 @@ int main() {
    
     // Estructura condicional if-else
     if (edad >= 18 && esAdulto) {
-        printf("Es mayor de edad\n");
+        printf("Es mayor de edad\\n");
         salario = salario + 500.0; // Incremento salarial
     } else {
-        printf("Es menor de edad\n");
+        printf("Es menor de edad\\n");
         salario = salario * 0.8; // Reducción salarial
     }
    
@@ -47,7 +47,7 @@ int main() {
    
     // Operaciones lógicas y comparaciones
     if (suma > 10 || contador == 5) {
-        printf("Condición cumplida\n");
+        printf("Condición cumplida\\n");
     }
    
     // Ciclo for para calcular promedio
@@ -67,9 +67,9 @@ int main() {
     // Condicional anidada
     if (resultado > 100) {
         if (esPar) {
-            printf("Número par con factorial grande\n");
+            printf("Número par con factorial grande\\n");
         } else {
-            printf("Número impar con factorial grande\n");
+            printf("Número impar con factorial grande\\n");
         }
     }
    
