@@ -378,6 +378,9 @@ int main() {
     }
 
     try {
+      // Validación inicial de sintaxis básica
+      validateBasicSyntax(tokens);
+
       while (!isAtEnd()) {
         skipComments();
         if (isAtEnd()) break;
@@ -390,9 +393,197 @@ int main() {
 
       console.log('Árbol sintáctico completo:', JSON.stringify(parseTree, null, 2));
 
+      // Debug: mostrar información de funciones detectadas
+      if (parseTree.children) {
+        parseTree.children.forEach(child => {
+          if (child.type === 'FUNCTION_DECLARATION') {
+            console.log(`Función detectada: ${child.name}`);
+            console.log(`Parámetros:`, child.parameters);
+            console.log(`String de parámetros:`, child.parameterString);
+          }
+        });
+      }
+
     } catch (error) {
       errors.push(`Error sintáctico: ${error.message}`);
       console.error('Error en análisis sintáctico:', error);
+    }
+
+    function validateBasicSyntax(tokens) {
+      // Verificar balance de llaves, paréntesis y errores específicos
+      let braceCount = 0;
+      let parenCount = 0;
+
+      for (let i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+        const nextToken = tokens[i + 1];
+        const prevToken = tokens[i - 1];
+
+        if (token.lexeme === '{') braceCount++;
+        if (token.lexeme === '}') braceCount--;
+        if (token.lexeme === '(') parenCount++;
+        if (token.lexeme === ')') parenCount--;
+
+        // Detectar parámetros de función sin coma
+        if (token.type === 'KEYWORD' && ['int', 'float', 'bool', 'char', 'double'].includes(token.lexeme)) {
+          const param1 = tokens[i + 1]; // nombre del parámetro
+          const possibleType = tokens[i + 2]; // posible segundo tipo
+          const param2 = tokens[i + 3]; // posible segundo parámetro
+
+          // Verificar si hay dos parámetros seguidos sin coma: "int a int b"
+          if (param1?.type === 'IDENTIFIER' &&
+              possibleType?.type === 'KEYWORD' &&
+              ['int', 'float', 'bool', 'char', 'double'].includes(possibleType.lexeme) &&
+              param2?.type === 'IDENTIFIER') {
+            errors.push(`Error sintáctico: Falta coma entre parámetros en línea ${token.line}`);
+          }
+        }
+
+        // Detectar declaraciones sin punto y coma
+        if (token.type === 'KEYWORD' && ['int', 'float', 'bool', 'char', 'double'].includes(token.lexeme)) {
+          const identifier = tokens[i + 1];
+          const operator = tokens[i + 2];
+
+          if (identifier?.type === 'IDENTIFIER') {
+            // Buscar el final de esta declaración
+            let j = i + 1;
+            let foundSemicolon = false;
+            let foundNewStatement = false;
+            let currentLine = token.line;
+
+            // Buscar hasta el final de la línea
+            while (j < tokens.length && tokens[j].line === currentLine) {
+              if (tokens[j].lexeme === ';') {
+                foundSemicolon = true;
+                break;
+              }
+              j++;
+            }
+
+            // Si no encontró punto y coma, verificar si hay nueva declaración
+            if (!foundSemicolon) {
+              while (j < tokens.length && tokens[j].line <= currentLine + 2) {
+                if (tokens[j].type === 'KEYWORD' &&
+                    ['int', 'float', 'bool', 'char', 'double', 'if', 'while', 'for', 'return'].includes(tokens[j].lexeme)) {
+                  foundNewStatement = true;
+                  break;
+                }
+                j++;
+              }
+
+              if (foundNewStatement) {
+                errors.push(`Error sintáctico: Falta ';' después de la declaración en línea ${currentLine}`);
+              }
+            }
+          }
+        }
+
+        // Detectar return sin punto y coma
+        if (token.lexeme === 'return') {
+          let j = i + 1;
+          let foundSemicolon = false;
+          let currentLine = token.line;
+
+          // Buscar punto y coma en la misma línea o líneas siguientes
+          while (j < tokens.length && tokens[j].line <= currentLine + 1) {
+            if (tokens[j].lexeme === ';') {
+              foundSemicolon = true;
+              break;
+            }
+            if (tokens[j].lexeme === '}') {
+              break; // Si encuentra llave de cierre sin ;
+            }
+            j++;
+          }
+
+          if (!foundSemicolon) {
+            errors.push(`Error sintáctico: Falta ';' después de return en línea ${currentLine}`);
+          }
+        }
+
+        // Detectar cout sin punto y coma
+        if (token.lexeme === 'cout') {
+          let j = i + 1;
+          let foundSemicolon = false;
+          let currentLine = token.line;
+          let lineCount = 0;
+
+          // Buscar punto y coma, permitiendo expresiones multi-línea
+          while (j < tokens.length && lineCount < 3) {
+            if (tokens[j].line > currentLine) lineCount++;
+
+            if (tokens[j].lexeme === ';') {
+              foundSemicolon = true;
+              break;
+            }
+
+            // Si encuentra una nueva declaración sin haber encontrado ;
+            if (tokens[j].type === 'KEYWORD' &&
+                ['int', 'float', 'bool', 'if', 'else', 'while', 'for', 'return'].includes(tokens[j].lexeme)) {
+              break;
+            }
+            j++;
+          }
+
+          if (!foundSemicolon) {
+            errors.push(`Error sintáctico: Falta ';' después de la expresión cout en línea ${currentLine}`);
+          }
+        }
+
+        // Detectar if/else sin punto y coma en declaraciones
+        if (token.lexeme === 'if' || token.lexeme === 'else') {
+          // Buscar hacia adelante para encontrar el cuerpo del if/else
+          let j = i + 1;
+          let foundBrace = false;
+
+          // Saltar la condición del if
+          if (token.lexeme === 'if') {
+            while (j < tokens.length && tokens[j].lexeme !== ')') j++;
+            j++; // Saltar el )
+          }
+
+          // Verificar si el siguiente statement tiene llave o necesita ;
+          if (j < tokens.length && tokens[j].lexeme !== '{') {
+            // Es un statement sin llaves, buscar si termina con ;
+            let statementStart = j;
+            let foundSemicolon = false;
+            let statementLine = tokens[j]?.line;
+
+            // Leer hasta encontrar ; o nueva línea con keyword
+            while (j < tokens.length) {
+              if (tokens[j].lexeme === ';') {
+                foundSemicolon = true;
+                break;
+              }
+
+              if (tokens[j].line > statementLine &&
+                  (tokens[j].lexeme === 'else' ||
+                      tokens[j].type === 'KEYWORD' &&
+                      ['int', 'float', 'bool', 'return', 'if', 'while'].includes(tokens[j].lexeme))) {
+                break;
+              }
+              j++;
+            }
+
+            // Si es una expresión (como cout) sin ;
+            if (!foundSemicolon && statementStart < tokens.length) {
+              const statementToken = tokens[statementStart];
+              if (statementToken?.lexeme === 'cout' ||
+                  statementToken?.type === 'IDENTIFIER') {
+                errors.push(`Error sintáctico: Falta ';' después del statement en línea ${statementLine}`);
+              }
+            }
+          }
+        }
+      }
+
+      if (braceCount !== 0) {
+        errors.push(`Error sintáctico: Llaves desbalanceadas (${braceCount > 0 ? 'faltan cerrar' : 'sobran'} ${Math.abs(braceCount)})`);
+      }
+
+      if (parenCount !== 0) {
+        errors.push(`Error sintáctico: Paréntesis desbalanceados (${parenCount > 0 ? 'faltan cerrar' : 'sobran'} ${Math.abs(parenCount)})`);
+      }
     }
 
     function parseTopLevelStatement() {
@@ -783,6 +974,7 @@ int main() {
         returnType: [],
         name: null,
         parameters: [],
+        parameterString: '', // Para debugging/fallback
         body: null
       };
 
@@ -808,7 +1000,29 @@ int main() {
       // Parámetros
       if (matchLexeme('(')) {
         advance(); // (
+
+        // Capturar parámetros en string para fallback
+        const paramStart = current;
+        let parenLevel = 0;
+        let paramTokens = [];
+
+        while (!isAtEnd()) {
+          const token = peek();
+          if (token.lexeme === '(') parenLevel++;
+          else if (token.lexeme === ')') {
+            if (parenLevel === 0) break;
+            parenLevel--;
+          }
+          paramTokens.push(token.lexeme);
+          advance();
+        }
+
+        functionNode.parameterString = paramTokens.join(' ');
+
+        // Resetear posición para parsear parámetros correctamente
+        current = paramStart;
         functionNode.parameters = parseParameterList();
+
         if (matchLexeme(')')) advance(); // )
       }
 
@@ -837,19 +1051,50 @@ int main() {
 
         const param = {
           type: 'PARAMETER',
-          dataType: [],
+          dataType: null,
           name: null,
           defaultValue: null
         };
 
         // Tipo del parámetro
-        while (!isAtEnd() && !match('IDENTIFIER') && !matchLexeme(',', ')')) {
-          param.dataType.push(advance().lexeme);
+        if (match('KEYWORD') && ['int', 'float', 'bool', 'char', 'double', 'void', 'string', 'long', 'short'].includes(peek().lexeme)) {
+          param.dataType = advance().lexeme;
+        } else if (match('IDENTIFIER')) {
+          // Podría ser un tipo personalizado
+          const tokenValue = peek().lexeme;
+          const nextToken = peek(1);
+
+          // Si el siguiente token es un identificador, entonces el actual es un tipo
+          if (nextToken?.type === 'IDENTIFIER') {
+            param.dataType = advance().lexeme;
+          } else {
+            // Error: se esperaba tipo de parámetro
+            errors.push(`Error sintáctico: Se esperaba tipo de parámetro, encontrado '${tokenValue}' en línea ${peek()?.line || 'desconocida'}`);
+            advance();
+            continue;
+          }
+        } else {
+          // Error: se esperaba un tipo
+          errors.push(`Error sintáctico: Se esperaba tipo de parámetro en línea ${peek()?.line || 'desconocida'}`);
+          advance(); // Saltar token problemático
+          continue;
         }
 
         // Nombre del parámetro
         if (match('IDENTIFIER')) {
           param.name = advance().lexeme;
+        } else {
+          // Error: se esperaba nombre del parámetro
+          errors.push(`Error sintáctico: Se esperaba nombre del parámetro después de '${param.dataType}' en línea ${peek()?.line || 'desconocida'}`);
+
+          // Si encontramos otro tipo directamente, es porque falta la coma
+          if (match('KEYWORD') && ['int', 'float', 'bool', 'char', 'double'].includes(peek().lexeme)) {
+            errors.push(`Error sintáctico: Falta coma entre parámetros en línea ${peek().line}`);
+            continue; // Continuar con el siguiente parámetro
+          }
+
+          advance(); // Saltar token problemático
+          continue;
         }
 
         // Valor por defecto
@@ -858,11 +1103,24 @@ int main() {
           param.defaultValue = readUntilCommaOrCloseParen();
         }
 
-        if (param.dataType.length > 0 || param.name) {
+        if (param.dataType && param.name) {
           parameters.push(param);
         }
 
-        if (matchLexeme(',')) advance();
+        // Verificar si hay más parámetros
+        if (matchLexeme(',')) {
+          advance(); // ,
+        } else if (!matchLexeme(')')) {
+          // Si no es ')' ni ',', podría ser un error
+          const nextToken = peek();
+          if (nextToken && (match('KEYWORD') && ['int', 'float', 'bool', 'char', 'double'].includes(nextToken.lexeme))) {
+            errors.push(`Error sintáctico: Falta coma entre parámetros '${param.name}' y '${nextToken.lexeme}' en línea ${nextToken.line}`);
+            // No avanzar aquí, dejar que el siguiente ciclo procese el parámetro
+          } else {
+            // Otros errores sintácticos
+            break;
+          }
+        }
       }
 
       return parameters;
@@ -942,11 +1200,24 @@ int main() {
           varDecl.variables.push(variable);
         }
 
-        if (matchLexeme(',')) advance();
-        else break;
+        if (matchLexeme(',')) {
+          advance();
+        } else {
+          break;
+        }
       }
 
-      if (matchLexeme(';')) advance();
+      // Verificar punto y coma
+      if (matchLexeme(';')) {
+        advance();
+      } else {
+        // Error: falta punto y coma
+        const lastToken = varDecl.variables[varDecl.variables.length - 1];
+        if (lastToken) {
+          errors.push(`Error sintáctico: Falta ';' después de la declaración de variable en línea ${peek()?.line || 'desconocida'}`);
+        }
+      }
+
       return varDecl;
     }
 
@@ -977,7 +1248,24 @@ int main() {
         if (statement) {
           statements.push(statement);
         } else {
-          advance();
+          // Si no se puede parsear, podría ser un error sintáctico
+          const currentToken = peek();
+          if (currentToken) {
+            // Verificar si es una línea problemática
+            let problematicLine = '';
+            const startLine = currentToken.line;
+
+            while (!isAtEnd() && peek()?.line === startLine) {
+              problematicLine += peek().lexeme + ' ';
+              advance();
+            }
+
+            if (problematicLine.trim()) {
+              errors.push(`Error sintáctico: Declaración mal formada en línea ${startLine}: "${problematicLine.trim()}"`);
+            }
+          } else {
+            advance(); // Saltar token problemático
+          }
         }
       }
 
@@ -1018,9 +1306,19 @@ int main() {
         while (!isAtEnd() && !matchLexeme('}')) {
           const stmt = parseStatement();
           if (stmt) blockStmt.statements.push(stmt);
+          else {
+            // Error de parsing, saltar token problemático
+            errors.push(`Error sintáctico: Token inesperado '${peek()?.lexeme}' en línea ${peek()?.line}`);
+            advance();
+          }
         }
 
-        if (matchLexeme('}')) advance(); // }
+        if (matchLexeme('}')) {
+          advance(); // }
+        } else {
+          errors.push(`Error sintáctico: Se esperaba '}' para cerrar el bloque`);
+        }
+
         return blockStmt;
       }
 
@@ -1242,7 +1540,7 @@ int main() {
     }
 
     function parseReturnStatement() {
-      advance(); // return
+      const returnToken = advance(); // return
 
       const returnStmt = {
         type: 'RETURN_STATEMENT',
@@ -1253,13 +1551,59 @@ int main() {
         returnStmt.expression = readUntilSemicolon();
       }
 
-      if (matchLexeme(';')) advance(); // ;
+      if (matchLexeme(';')) {
+        advance(); // ;
+      } else {
+        // Error: falta punto y coma después de return
+        errors.push(`Error sintáctico: Falta ';' después de return en línea ${returnToken.line}`);
+      }
+
       return returnStmt;
     }
 
     function parseExpressionStatement() {
-      const expression = readUntilSemicolon();
-      if (matchLexeme(';')) advance(); // ;
+      let expression = '';
+      let tokenCount = 0;
+      const startToken = peek();
+
+      // Leer tokens hasta encontrar ; o llegar a otro statement
+      while (!isAtEnd() && !matchLexeme(';')) {
+        const token = peek();
+        if (!token) break;
+
+        // Parar si encontramos inicio de otro statement
+        if (tokenCount > 0 && (
+            matchLexeme('return', 'if', 'while', 'for', 'int', 'float', 'bool', 'char', 'double', '}') ||
+            (token.type === 'KEYWORD' && ['int', 'float', 'bool', 'char', 'double', 'return'].includes(token.lexeme))
+        )) {
+          break;
+        }
+
+        expression += token.lexeme + ' ';
+        advance();
+        tokenCount++;
+      }
+
+      expression = expression.trim();
+
+      // Si encontramos una expresión válida pero no hay punto y coma
+      if (expression && tokenCount > 0 && !matchLexeme(';')) {
+        // Verificar si es una expresión que requiere punto y coma
+        if (expression.includes('cout') ||
+            expression.includes('<<') ||
+            expression.includes('=') ||
+            expression.includes('++') ||
+            expression.includes('--') ||
+            /^[a-zA-Z_][a-zA-Z0-9_]*\s*\(/.test(expression)) { // llamadas a función
+
+          const nextToken = peek();
+          if (nextToken && nextToken.lexeme !== '}') {
+            errors.push(`Error sintáctico: Se esperaba ';' después de "${expression}" en línea ${startToken?.line || 'desconocida'}`);
+          }
+        }
+      }
+
+      if (matchLexeme(';')) advance(); // Consumir ; si existe
 
       return {
         type: 'EXPRESSION_STATEMENT',
@@ -1463,7 +1807,7 @@ int main() {
         node.parameters.forEach(param => {
           if (param.name) {
             symbolTable.set(param.name, {
-              type: param.dataType?.join(' ') || 'int',
+              type: Array.from(param.dataType|| []).join(' ') || 'int',
               value: param.defaultValue || null,
               used: false,
               isParameter: true
