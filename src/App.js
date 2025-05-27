@@ -63,6 +63,7 @@ int main() {
     const delimiters = ['(', ')', '{', '}', '[', ']', ';', ',', '.', '"', "'"];
     const lines = code.split('\n');
     let tokenId = 1;
+    let inBlockComment = false;
 
     lines.forEach((line, lineNum) => {
       let i = 0;
@@ -70,6 +71,18 @@ int main() {
       while (i < line.length) {
         const char = line[i];
 
+        // Manejar comentarios de bloque multilínea
+        if (inBlockComment) {
+          if (char === '*' && line[i + 1] === '/') {
+            inBlockComment = false;
+            i += 2; // Saltar */
+          } else {
+            i++; // Saltar cualquier carácter dentro del comentario
+          }
+          continue;
+        }
+
+        // Saltar espacios en blanco
         if (/\s/.test(char)) {
           i++;
           continue;
@@ -77,34 +90,20 @@ int main() {
 
         let startColumn = i;
 
+        // Comentarios de línea //
         if (char === '/' && line[i + 1] === '/') {
+          // Saltar el resto de la línea
           break;
         }
 
+        // Inicio de comentarios de bloque /* */
         if (char === '/' && line[i + 1] === '*') {
-          tokens.push({
-            id: tokenId++,
-            lexeme: '/*',
-            type: 'COMMENT_START',
-            line: lineNum + 1,
-            column: startColumn + 1
-          });
-          i += 2;
+          inBlockComment = true;
+          i += 2; // Saltar /*
           continue;
         }
 
-        if (char === '*' && line[i + 1] === '/') {
-          tokens.push({
-            id: tokenId++,
-            lexeme: '*/',
-            type: 'COMMENT_END',
-            line: lineNum + 1,
-            column: startColumn + 1
-          });
-          i += 2;
-          continue;
-        }
-
+        // Directivas de preprocesador
         if (char === '#') {
           let directive = '#';
           i++;
@@ -122,6 +121,7 @@ int main() {
           continue;
         }
 
+        // Verificar operadores (empezando por los más largos)
         let operatorFound = false;
         for (const op of operators) {
           if (line.substr(i, op.length) === op) {
@@ -140,12 +140,16 @@ int main() {
 
         if (operatorFound) continue;
 
+        // Verificar delimitadores
         if (delimiters.includes(char)) {
+          // Manejo especial para strings
           if (char === '"') {
             let stringContent = '"';
-            i++;
+            i++; // Saltar la primera comilla
+
             while (i < line.length && line[i] !== '"') {
               if (line[i] === '\\' && i + 1 < line.length) {
+                // Manejar caracteres de escape
                 stringContent += line[i] + line[i + 1];
                 i += 2;
               } else {
@@ -153,10 +157,12 @@ int main() {
                 i++;
               }
             }
+
             if (i < line.length && line[i] === '"') {
               stringContent += '"';
               i++;
             }
+
             tokens.push({
               id: tokenId++,
               lexeme: stringContent,
@@ -164,11 +170,15 @@ int main() {
               line: lineNum + 1,
               column: startColumn + 1
             });
-          } else if (char === "'") {
+          }
+          // Manejo especial para caracteres
+          else if (char === "'") {
             let charContent = "'";
-            i++;
+            i++; // Saltar la primera comilla simple
+
             while (i < line.length && line[i] !== "'") {
               if (line[i] === '\\' && i + 1 < line.length) {
+                // Manejar caracteres de escape
                 charContent += line[i] + line[i + 1];
                 i += 2;
               } else {
@@ -176,10 +186,12 @@ int main() {
                 i++;
               }
             }
+
             if (i < line.length && line[i] === "'") {
               charContent += "'";
               i++;
             }
+
             tokens.push({
               id: tokenId++,
               lexeme: charContent,
@@ -200,6 +212,7 @@ int main() {
           continue;
         }
 
+        // Construir token alfanumérico o numérico
         let currentToken = '';
         while (i < line.length &&
         !operators.some(op => line.substr(i, op.length) === op) &&
@@ -209,6 +222,7 @@ int main() {
           i++;
         }
 
+        // Si se construyó un token, categorizarlo
         if (currentToken) {
           tokens.push(categorizeToken(currentToken, tokenId++, lineNum + 1, startColumn + 1));
         }
@@ -760,9 +774,21 @@ int main() {
         param.name = advance().lexeme;
       }
 
+      // Verificar que después del nombre viene una coma o paréntesis de cierre
+      if (match('IDENTIFIER') && !matchLexeme(',', ')', '=')) {
+        // Hay otro identificador sin coma - error
+        const nextToken = peek();
+        errors.push(`Error línea ${nextToken.line}: Se esperaba ',' entre parámetros. Encontrado '${nextToken.lexeme}'`);
+
+        // Intentar recuperarse avanzando hasta la próxima coma o paréntesis
+        while (!isAtEnd() && !matchLexeme(',', ')')) {
+          advance();
+        }
+      }
+
       // Valor por defecto
       if (matchLexeme('=')) {
-        advance();
+        advance(); // =
         param.defaultValue = readUntilCommaOrCloseParen();
       }
 
@@ -770,7 +796,15 @@ int main() {
         parameters.push(param);
       }
 
-      if (matchLexeme(',')) advance();
+      if (matchLexeme(',')) {
+        advance();
+      } else if (!matchLexeme(')')) {
+        // No hay coma ni paréntesis de cierre
+        const token = peek();
+        if (token) {
+          errors.push(`Error línea ${token.line}: Se esperaba ',' o ')' en lista de parámetros`);
+        }
+      }
     }
 
     return parameters;
@@ -840,7 +874,7 @@ int main() {
       if (matchLexeme('[')) {
         advance();
         variable.arraySize = readUntilClosingBracket();
-        if (!expect(']',` Se esperaba ']' para cerrar array`)) {
+        if (!expect(']', `Se esperaba ']' para cerrar array`)) {
           break;
         }
       }
@@ -848,17 +882,34 @@ int main() {
       // Initialization
       if (matchLexeme('=')) {
         advance();
+        const startLine = peek()?.line;
         variable.initialValue = readUntilCommaOrSemicolon();
+
+        // Verificar si la inicialización terminó en nueva línea sin ; o ,
+        const currentToken = peek();
+        if (currentToken && currentToken.line > startLine && variable.initialValue) {
+          errors.push(`Error línea ${startLine}: Se esperaba ';' al final de la declaración de variable '${variable.name}'`);
+        }
       }
 
       varDecl.variables.push(variable);
 
-      if (matchLexeme(',')) advance();
-      else break;
+      if (matchLexeme(',')) {
+        advance();
+      } else if (!matchLexeme(';')) {
+        // Verificar si hay otro identificador sin coma
+        if (match('IDENTIFIER')) {
+          const nextToken = peek();
+          errors.push(`Error línea ${nextToken.line}: Se esperaba ',' entre declaraciones de variables`);
+          break;
+        }
+      } else {
+        break;
+      }
     }
 
     if (!expect(';', `Se esperaba ';' al final de la declaración de variable`)) {
-      return null;
+      return varDecl; // Retornar la declaración parcial
     }
 
     return varDecl;
@@ -935,6 +986,7 @@ int main() {
     return blockStmt;
   }
 
+  // Manejar expresiones simples sin validación excesiva
   return parseExpressionStatement();
 }
 
@@ -1007,34 +1059,38 @@ function parseForStatement() {
     return null;
   }
 
+  // Leer todo el contenido dentro de los paréntesis de una vez
   const forContent = readUntilClosingParen();
-  const parts = forContent.split(';');
-
-  if (parts.length !== 3) {
-    errors.push(`Error línea ${peek()?.line || 'EOF'}: Estructura de for incorrecta. Debe tener 3 partes separadas por ';'`);
-    return null;
-  }
-
-  forStmt.init = parts[0].trim();
-  forStmt.condition = parts[1].trim();
-  forStmt.update = parts[2].trim();
-
-  // Detectar declaración de variable en el init
-  const varDeclMatch = forStmt.init.match(/^(int|float|bool|double|char)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
-  if (varDeclMatch) {
-    forStmt.variableDeclaration = {
-      type: 'VARIABLE_DECLARATION',
-      modifiers: [],
-      dataType: [varDeclMatch[1]],
-      variables: [{
-        name: varDeclMatch[2],
-        initialValue: varDeclMatch[3].trim()
-      }]
-    };
-  }
 
   if (!expect(')', `Se esperaba ')' para cerrar declaración de for`)) {
     return null;
+  }
+
+  // Procesar el contenido del for solo si se leyó correctamente
+  if (forContent) {
+    const parts = forContent.split(';');
+
+    if (parts.length !== 3) {
+      errors.push(`Error línea ${peek()?.line || 'EOF'}: Estructura de for incorrecta. Debe tener 3 partes separadas por ';'`);
+    } else {
+      forStmt.init = parts[0].trim();
+      forStmt.condition = parts[1].trim();
+      forStmt.update = parts[2].trim();
+
+      // Detectar declaración de variable en el init
+      const varDeclMatch = forStmt.init.match(/^(int|float|bool|double|char)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+      if (varDeclMatch) {
+        forStmt.variableDeclaration = {
+          type: 'VARIABLE_DECLARATION',
+          modifiers: [],
+          dataType: [varDeclMatch[1]],
+          variables: [{
+            name: varDeclMatch[2],
+            initialValue: varDeclMatch[3].trim()
+          }]
+        };
+      }
+    }
   }
 
   forStmt.body = parseStatement();
@@ -1056,7 +1112,7 @@ function parseDoWhileStatement() {
     return null;
   }
 
-  if (!expect('(',`Se esperaba '(' después de while`)) {
+  if (!expect('(', `Se esperaba '(' después de while`)) {
     return null;
   }
 
@@ -1179,7 +1235,7 @@ function parseJumpStatement() {
 }
 
 function parseReturnStatement() {
-  advance(); // return
+  const returnToken = advance(); // return
 
   const returnStmt = {
     type: 'RETURN_STATEMENT',
@@ -1187,21 +1243,43 @@ function parseReturnStatement() {
   };
 
   if (!matchLexeme(';')) {
+    const startLine = peek()?.line;
     returnStmt.expression = readUntilSemicolon();
+
+    // Verificar si la expresión terminó en una nueva línea sin ;
+    const currentToken = peek();
+    if (currentToken && currentToken.line > startLine && returnStmt.expression) {
+      errors.push(`Error línea ${startLine}: Se esperaba ';' después de return "${returnStmt.expression}"`);
+      return returnStmt; // Retornar sin avanzar el ;
+    }
   }
 
   if (!expect(';', `Se esperaba ';' después de return`)) {
-    return null;
+    return returnStmt;
   }
 
   return returnStmt;
 }
 
 function parseExpressionStatement() {
+  const startToken = peek();
   const expression = readUntilSemicolon();
 
-  if (!expect(';', `Se esperaba ';' al final de la expresión`)) {
-    return null;
+  // Solo verificar punto y coma si hay contenido
+  if (expression && expression.trim() !== '') {
+    if (!expect(';', `Se esperaba ';' al final de la expresión`)) {
+      // Si no hay punto y coma, crear el statement de todas formas
+      return {
+        type: 'EXPRESSION_STATEMENT',
+        expression: expression,
+        hasError: true
+      };
+    }
+  } else {
+    // Si no hay expresión, avanzar al siguiente token
+    if (peek() && peek().lexeme === ';') {
+      advance();
+    }
   }
 
   return {
@@ -1212,28 +1290,44 @@ function parseExpressionStatement() {
 
 function readUntilSemicolon() {
   let content = '';
+  let lineStart = peek()?.line;
+
   while (!isAtEnd() && !matchLexeme(';')) {
-    content += peek().lexeme + ' ';
+    const token = peek();
+
+    // Si cambiamos de línea y no encontramos ;, es probable que falte
+    if (token.line > lineStart && content.trim() !== '') {
+      // No avanzar más, dejar que parseStatement maneje el error
+      break;
+    }
+
+    content += token.lexeme + ' ';
     advance();
   }
+
   return content.trim();
 }
 
 function readUntilClosingParen() {
   let content = '';
   let parenLevel = 0;
+  const startToken = peek();
 
   while (!isAtEnd()) {
     const token = peek();
     if (token.lexeme === '(') {
       parenLevel++;
+      content += token.lexeme + ' ';
+      advance();
     } else if (token.lexeme === ')') {
       if (parenLevel === 0) break;
       parenLevel--;
+      content += token.lexeme + ' ';
+      advance();
+    } else {
+      content += token.lexeme + ' ';
+      advance();
     }
-
-    content += token.lexeme + ' ';
-    advance();
   }
 
   return content.trim();
@@ -2087,47 +2181,35 @@ return (
               <h2 className="text-xl font-semibold">Editor de Código Fuente C++</h2>
               <div className="flex gap-3">
                 <button
-                    onClick={() => setSourceCode(`
-  /* Código con errores sintácticos para probar */
- 
-int factorial(int n {  // Error: falta )
-    if (n <= 1) {
-        return 1;
-    } else {
-        return n * factorial(n - 1);
-    }
-}
- 
-int main() {
-    int edad = 25  // Error: falta ;
-    float salario = 2500.75;
-    bool esAdulto = true;
-    
-    // Error: falta (
-    if edad >= 18) {
-        printf("Es mayor de edad\\n");
-    }
-    
-    // Error: while sin condición
-    while {
-        break;
-    }
-    
-    // Error: for malformado (falta ;)
-    for (int i = 0 i < 5; i++) {
-        printf("Iteración %d\\n", i);
-    }
-    
-    return 0;  // Error: función sin }
-`)}
+                    onClick={() => setSourceCode(`#include <iostream>
+using namespace std;
+
+int suma(int a int b)  // Falta una coma
+{
+    return a + b
+}  // Falta punto y coma en return, y mal uso de llave
+
+int main() 
+{
+    int x = 10  // Falta punto y coma
+    int y = 5;
+    int resultado = suma(x, y;  // Falta paréntesis de cierre
+    cout << "La suma es: " << resultado << endl;
+    if (resultado > 10)
+        cout << "El resultado es mayor que 10";
+    else
+        cout << "El resultado es 10 o menor";
+    return 0;
+}`)}
                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                 >
                   📝 Código con Errores
                 </button>
                 <button
-                    onClick={() => setSourceCode(`
-// Código C++ correcto sin errores
-
+                    onClick={() => setSourceCode(`/* Programa de ejemplo para análisis completo del compilador
+   Incluye múltiples estructuras y operaciones */
+ 
+// Función para calcular factorial
 int factorial(int n) {
     if (n <= 1) {
         return 1;
@@ -2135,34 +2217,70 @@ int factorial(int n) {
         return n * factorial(n - 1);
     }
 }
-
+ 
+// Función principal
 int main() {
+    // Declaración de variables de diferentes tipos
     int edad = 25;
     float salario = 2500.75;
     bool esAdulto = true;
     int contador = 0;
-    
+    int numero = 5;
+    float promedio = 0.0;
+    int suma = 0;
+   
+    // Operaciones aritméticas
+    int dobleEdad = edad * 2;
+    float salarioAnual = salario * 12;
+   
+    // Estructura condicional if-else
     if (edad >= 18 && esAdulto) {
         printf("Es mayor de edad\\n");
-        salario = salario + 500.0;
+        salario = salario + 500.0; // Incremento salarial
     } else {
         printf("Es menor de edad\\n");
+        salario = salario * 0.8; // Reducción salarial
     }
-    
+   
+    // Ciclo while para contar
     while (contador < 5) {
+        suma = suma + contador;
         contador = contador + 1;
     }
-    
-    for (int i = 0; i < 5; i++) {
-        printf("Iteración %d\\n", i);
+   
+    // Operaciones lógicas y comparaciones
+    if (suma > 10 || contador == 5) {
+        printf("Condición cumplida\\n");
     }
-    
+   
+    // Ciclo for para calcular promedio
+    for (int i = 1; i <= numero; i++) {
+        promedio = promedio + i;
+    }
+    promedio = promedio / numero;
+   
+    // Más operaciones aritméticas
+    int resultado = factorial(numero);
+    bool esPar = (numero % 2) == 0;
+   
+    // Asignaciones y operaciones combinadas
+    edad = edad + 1;
+    salario = salario - 100.0;
+   
+    // Condicional anidada
+    if (resultado > 100) {
+        if (esPar) {
+            printf("Número par con factorial grande\\n");
+        } else {
+            printf("Número impar con factorial grande\\n");
+        }
+    }
+   
     return 0;
-}
-`)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+}`)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                 >
-                  ✅ Código Correcto
+                  🔍 Analizar Este Código
                 </button>
                 <button
                     onClick={handleCompile}
