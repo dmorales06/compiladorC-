@@ -1621,7 +1621,24 @@ const Compiler = () => {
 
             if (!areTypesCompatible(expectedType, valueType)) {
                 errors.push(`Error de tipo: No se puede asignar '${valueType}' a variable '${identifier}' de tipo '${expectedType}'`);
+            } else if (hasImplicitConversionWithLoss(expectedType, valueType)) {
+                warnings.push(`Advertencia: Conversión implícita de '${valueType}' a '${expectedType}' en variable '${identifier}' puede causar pérdida de precisión`);
             }
+        }
+
+        // NUEVA FUNCIÓN: Detectar conversiones con pérdida de precisión
+        function hasImplicitConversionWithLoss(targetType, sourceType) {
+            // float/double a int = pérdida de decimales
+            if (targetType === 'int' && (sourceType === 'float' || sourceType === 'double')) {
+                return true;
+            }
+
+            // double a float = pérdida de precisión
+            if (targetType === 'float' && sourceType === 'double') {
+                return true;
+            }
+
+            return false;
         }
 
         // NUEVA FUNCIÓN: Determinar el tipo de una expresión
@@ -2303,14 +2320,15 @@ const Compiler = () => {
                             <h2 className="text-xl font-semibold">Editor de Código Fuente C++</h2>
                             <div className="flex gap-3">
                                 <button
-                                    onClick={() => setSourceCode(`int prueba(){
-    int a, suma;
-    string b;
-    suma = a + b;  // Error: int + string incompatible
+                                    onClick={() => setSourceCode(`int main() {
+    int a = 5;
+    float b = 2.5;
+    int resultado = a + b;  // ¿Error? float a int con pérdida
+    return 0;
 }`)}
-                                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                                 >
-                                    🧪 Tu Ejemplo
+                                    ⚠️ Pérdida de Precisión
                                 </button>
                                 <button
                                     onClick={() => setSourceCode(`/* Código correcto con tipos compatibles */
