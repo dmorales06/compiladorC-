@@ -2,39 +2,11 @@ import React, {useState, useCallback} from 'react';
 import {Play, Code, AlertCircle, CheckCircle, Info, FileText} from 'lucide-react';
 
 const Compiler = () => {
-    const [sourceCode, setSourceCode] = useState(`
-  /* Código con errores sintácticos para probar */
- 
-int factorial(int n {  // Error: falta )
-    if (n <= 1) {
-        return 1;
-    } else {
-        return n * factorial(n - 1);
-    }
-}
- 
-int main() {
-    int edad = 25
-    float salario = 2500.75;  // Error: falta ;
-    bool esAdulto = true;
-    
-    // Error: falta (
-    if edad >= 18) {
-        printf("Es mayor de edad\\n");
-    }
-    
-    // Error: while sin condición
-    while {
-        break;
-    }
-    
-    // Error: for malformado
-    for (int i = 0 i < 5; i++) {
-        printf("Iteración %d\\n", i);
-    }
-    
-    return 0;  // Error: función sin }
-  `);
+    const [sourceCode, setSourceCode] = useState(`int prueba(){
+    int a, suma;
+    string b;
+    suma = a + b;  // Error: int + string incompatible
+}`);
     const [activeTab, setActiveTab] = useState('lexico');
     const [compilationResult, setCompilationResult] = useState(null);
 
@@ -71,18 +43,16 @@ int main() {
             while (i < line.length) {
                 const char = line[i];
 
-                // Manejar comentarios de bloque multilínea
                 if (inBlockComment) {
                     if (char === '*' && line[i + 1] === '/') {
                         inBlockComment = false;
-                        i += 2; // Saltar */
+                        i += 2;
                     } else {
-                        i++; // Saltar cualquier carácter dentro del comentario
+                        i++;
                     }
                     continue;
                 }
 
-                // Saltar espacios en blanco
                 if (/\s/.test(char)) {
                     i++;
                     continue;
@@ -90,20 +60,16 @@ int main() {
 
                 let startColumn = i;
 
-                // Comentarios de línea //
                 if (char === '/' && line[i + 1] === '/') {
-                    // Saltar el resto de la línea
                     break;
                 }
 
-                // Inicio de comentarios de bloque /* */
                 if (char === '/' && line[i + 1] === '*') {
                     inBlockComment = true;
-                    i += 2; // Saltar /*
+                    i += 2;
                     continue;
                 }
 
-                // Directivas de preprocesador
                 if (char === '#') {
                     let directive = '#';
                     i++;
@@ -121,7 +87,6 @@ int main() {
                     continue;
                 }
 
-                // Verificar operadores (empezando por los más largos)
                 let operatorFound = false;
                 for (const op of operators) {
                     if (line.substr(i, op.length) === op) {
@@ -140,16 +105,13 @@ int main() {
 
                 if (operatorFound) continue;
 
-                // Verificar delimitadores
                 if (delimiters.includes(char)) {
-                    // Manejo especial para strings
                     if (char === '"') {
                         let stringContent = '"';
-                        i++; // Saltar la primera comilla
+                        i++;
 
                         while (i < line.length && line[i] !== '"') {
                             if (line[i] === '\\' && i + 1 < line.length) {
-                                // Manejar caracteres de escape
                                 stringContent += line[i] + line[i + 1];
                                 i += 2;
                             } else {
@@ -171,14 +133,12 @@ int main() {
                             column: startColumn + 1
                         });
                     }
-                    // Manejo especial para caracteres
                     else if (char === "'") {
                         let charContent = "'";
-                        i++; // Saltar la primera comilla simple
+                        i++;
 
                         while (i < line.length && line[i] !== "'") {
                             if (line[i] === '\\' && i + 1 < line.length) {
-                                // Manejar caracteres de escape
                                 charContent += line[i] + line[i + 1];
                                 i += 2;
                             } else {
@@ -212,7 +172,6 @@ int main() {
                     continue;
                 }
 
-                // Construir token alfanumérico o numérico
                 let currentToken = '';
                 while (i < line.length &&
                 !operators.some(op => line.substr(i, op.length) === op) &&
@@ -222,7 +181,6 @@ int main() {
                     i++;
                 }
 
-                // Si se construyó un token, categorizarlo
                 if (currentToken) {
                     tokens.push(categorizeToken(currentToken, tokenId++, lineNum + 1, startColumn + 1));
                 }
@@ -252,7 +210,7 @@ int main() {
         }
     }, []);
 
-    // Analizador Sintáctico MEJORADO con detección estricta de errores
+    // Analizador Sintáctico (mismo que antes)
     const syntacticAnalysis = useCallback((tokens) => {
         const parseTree = {
             type: 'PROGRAM',
@@ -394,7 +352,6 @@ int main() {
                 return parseNamespaceDeclaration();
             }
 
-            // Token no reconocido a nivel superior
             errors.push(`Error línea ${token.line}: Token inesperado '${token.lexeme}' a nivel superior`);
             advance();
             return null;
@@ -582,7 +539,6 @@ int main() {
                 return parseVariableDeclaration();
             }
 
-            // Miembro no reconocido
             const token = peek();
             if (token) {
                 errors.push(`Error línea ${token.line}: Miembro de clase no válido '${token.lexeme}'`);
@@ -690,7 +646,6 @@ int main() {
                 body: null
             };
 
-            // Modificadores y tipo de retorno
             while (!isAtEnd() && !match('IDENTIFIER')) {
                 const token = advance();
                 if (token.type === 'KEYWORD') {
@@ -704,14 +659,12 @@ int main() {
                 }
             }
 
-            // Nombre de la función
             if (!match('IDENTIFIER')) {
                 errors.push(`Error línea ${peek()?.line || 'EOF'}: Se esperaba nombre de función`);
                 return null;
             }
             functionNode.name = advance().lexeme;
 
-            // Parámetros
             if (!expect('(', `Se esperaba '(' después del nombre de función '${functionNode.name}'`)) {
                 return null;
             }
@@ -722,12 +675,10 @@ int main() {
                 return null;
             }
 
-            // Modificadores post-declaración
             while (matchLexeme('const', 'override', 'final')) {
                 functionNode.modifiers.push(advance().lexeme);
             }
 
-            // Cuerpo de la función o declaración
             if (matchLexeme('{')) {
                 advance();
                 functionNode.body = parseFunctionBody();
@@ -757,29 +708,23 @@ int main() {
                     defaultValue: null
                 };
 
-                // Tipo del parámetro
                 while (!isAtEnd() && !match('IDENTIFIER') && !matchLexeme(',', ')')) {
                     param.dataType.push(advance().lexeme);
                 }
 
-                // Nombre del parámetro
                 if (match('IDENTIFIER')) {
                     param.name = advance().lexeme;
                 }
 
-                // Verificar que después del nombre viene una coma o paréntesis de cierre
                 if (match('IDENTIFIER') && !matchLexeme(',', ')', '=')) {
-                    // Hay otro identificador sin coma - error
                     const nextToken = peek();
                     errors.push(`Error línea ${nextToken.line}: Se esperaba ',' entre parámetros. Encontrado '${nextToken.lexeme}'`);
 
-                    // Intentar recuperarse avanzando hasta la próxima coma o paréntesis
                     while (!isAtEnd() && !matchLexeme(',', ')')) {
                         advance();
                     }
                 }
 
-                // Valor por defecto
                 if (matchLexeme('=')) {
                     advance(); // =
                     param.defaultValue = readUntilCommaOrCloseParen();
@@ -792,7 +737,6 @@ int main() {
                 if (matchLexeme(',')) {
                     advance();
                 } else if (!matchLexeme(')')) {
-                    // No hay coma ni paréntesis de cierre
                     const token = peek();
                     if (token) {
                         errors.push(`Error línea ${token.line}: Se esperaba ',' o ')' en lista de parámetros`);
@@ -836,7 +780,6 @@ int main() {
                 variables: []
             };
 
-            // Modificadores y tipo
             while (!isAtEnd() && !match('IDENTIFIER')) {
                 const token = advance();
                 if (token.type === 'KEYWORD') {
@@ -850,7 +793,6 @@ int main() {
                 }
             }
 
-            // Variables (puede haber múltiples separadas por comas)
             while (!isAtEnd() && !matchLexeme(';')) {
                 if (!match('IDENTIFIER')) {
                     errors.push(`Error línea ${peek()?.line || 'EOF'}: Se esperaba nombre de variable`);
@@ -863,7 +805,6 @@ int main() {
                     initialValue: null
                 };
 
-                // Array declaration
                 if (matchLexeme('[')) {
                     advance();
                     variable.arraySize = readUntilClosingBracket();
@@ -872,13 +813,11 @@ int main() {
                     }
                 }
 
-                // Initialization
                 if (matchLexeme('=')) {
                     advance();
                     const startLine = peek()?.line;
                     variable.initialValue = readUntilCommaOrSemicolon();
 
-                    // Verificar si la inicialización terminó en nueva línea sin ; o ,
                     const currentToken = peek();
                     if (currentToken && currentToken.line > startLine && variable.initialValue) {
                         errors.push(`Error línea ${startLine}: Se esperaba ';' al final de la declaración de variable '${variable.name}'`);
@@ -890,7 +829,6 @@ int main() {
                 if (matchLexeme(',')) {
                     advance();
                 } else if (!matchLexeme(';')) {
-                    // Verificar si hay otro identificador sin coma
                     if (match('IDENTIFIER')) {
                         const nextToken = peek();
                         errors.push(`Error línea ${nextToken.line}: Se esperaba ',' entre declaraciones de variables`);
@@ -902,7 +840,7 @@ int main() {
             }
 
             if (!expect(';', `Se esperaba ';' al final de la declaración de variable`)) {
-                return varDecl; // Retornar la declaración parcial
+                return varDecl;
             }
 
             return varDecl;
@@ -979,7 +917,6 @@ int main() {
                 return blockStmt;
             }
 
-            // Manejar expresiones simples sin validación excesiva
             return parseExpressionStatement();
         }
 
@@ -1052,14 +989,12 @@ int main() {
                 return null;
             }
 
-            // Leer todo el contenido dentro de los paréntesis de una vez
             const forContent = readUntilClosingParen();
 
             if (!expect(')', `Se esperaba ')' para cerrar declaración de for`)) {
                 return null;
             }
 
-            // Procesar el contenido del for solo si se leyó correctamente
             if (forContent) {
                 const parts = forContent.split(';');
 
@@ -1070,7 +1005,6 @@ int main() {
                     forStmt.condition = parts[1].trim();
                     forStmt.update = parts[2].trim();
 
-                    // Detectar declaración de variable en el init
                     const varDeclMatch = forStmt.init.match(/^(int|float|bool|double|char)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
                     if (varDeclMatch) {
                         forStmt.variableDeclaration = {
@@ -1239,11 +1173,10 @@ int main() {
                 const startLine = peek()?.line;
                 returnStmt.expression = readUntilSemicolon();
 
-                // Verificar si la expresión terminó en una nueva línea sin ;
                 const currentToken = peek();
                 if (currentToken && currentToken.line > startLine && returnStmt.expression) {
                     errors.push(`Error línea ${startLine}: Se esperaba ';' después de return "${returnStmt.expression}"`);
-                    return returnStmt; // Retornar sin avanzar el ;
+                    return returnStmt;
                 }
             }
 
@@ -1258,10 +1191,8 @@ int main() {
             const startToken = peek();
             const expression = readUntilSemicolon();
 
-            // Solo verificar punto y coma si hay contenido
             if (expression && expression.trim() !== '') {
                 if (!expect(';', `Se esperaba ';' al final de la expresión`)) {
-                    // Si no hay punto y coma, crear el statement de todas formas
                     return {
                         type: 'EXPRESSION_STATEMENT',
                         expression: expression,
@@ -1269,7 +1200,6 @@ int main() {
                     };
                 }
             } else {
-                // Si no hay expresión, avanzar al siguiente token
                 if (peek() && peek().lexeme === ';') {
                     advance();
                 }
@@ -1288,9 +1218,7 @@ int main() {
             while (!isAtEnd() && !matchLexeme(';')) {
                 const token = peek();
 
-                // Si cambiamos de línea y no encontramos ;, es probable que falte
                 if (token.line > lineStart && content.trim() !== '') {
-                    // No avanzar más, dejar que parseStatement maneje el error
                     break;
                 }
 
@@ -1389,7 +1317,7 @@ int main() {
         return {parseTree, errors};
     }, []);
 
-// Analizador Semántico (mismo que antes pero mejorado)
+    // Analizador Semántico MEJORADO con validación estricta de tipos
     const semanticAnalysis = useCallback((parseTree) => {
         const symbolTable = new Map();
         const errors = [];
@@ -1505,9 +1433,11 @@ int main() {
                         return;
                     }
 
+                    const varType = node.dataType?.join(' ') || 'int';
+
                     symbolTable.set(variable.name, {
-                        type: node.dataType?.join(' ') || 'int',
-                        value: variable.initialValue || getDefaultValue(node.dataType?.join(' ') || 'int'),
+                        type: varType,
+                        value: variable.initialValue || getDefaultValue(varType),
                         used: false,
                         modifiers: node.modifiers || [],
                         arraySize: variable.arraySize
@@ -1516,7 +1446,8 @@ int main() {
                     if (variable.initialValue) {
                         const variables = extractVariables(variable.initialValue);
                         markVariablesAsUsed(variables);
-                        checkTypeCompatibility(variable.name, node.dataType?.join(' ') || 'int', variable.initialValue);
+                        // VALIDACIÓN ESTRICTA DE TIPOS MEJORADA
+                        checkStrictTypeCompatibility(variable.name, varType, variable.initialValue);
                     }
                 });
             }
@@ -1572,6 +1503,8 @@ int main() {
             if (node.condition) {
                 const variables = extractVariables(node.condition);
                 markVariablesAsUsed(variables);
+                // Validar que la condición sea de tipo booleano
+                validateBooleanExpression(node.condition, 'condición de if');
             }
 
             if (node.thenStatement) {
@@ -1587,6 +1520,7 @@ int main() {
             if (node.condition) {
                 const variables = extractVariables(node.condition);
                 markVariablesAsUsed(variables);
+                validateBooleanExpression(node.condition, 'condición de while');
             }
 
             if (node.body) {
@@ -1595,30 +1529,26 @@ int main() {
         }
 
         function handleForStatement(node) {
-            // Si hay declaración de variable en el for, procesarla primero
             if (node.variableDeclaration) {
                 handleVariableDeclaration(node.variableDeclaration);
             }
 
-            // Procesar inicialización (sin extraer variables de declaraciones ya procesadas)
             if (node.init && !node.variableDeclaration) {
                 const initVars = extractVariables(node.init);
                 markVariablesAsUsed(initVars);
             }
 
-            // Procesar condición
             if (node.condition) {
                 const condVars = extractVariables(node.condition);
                 markVariablesAsUsed(condVars);
+                validateBooleanExpression(node.condition, 'condición de for');
             }
 
-            // Procesar actualización
             if (node.update) {
                 const updateVars = extractVariables(node.update);
                 markVariablesAsUsed(updateVars);
             }
 
-            // Procesar cuerpo
             if (node.body) {
                 analyzeNode(node.body);
             }
@@ -1632,6 +1562,7 @@ int main() {
             if (node.condition) {
                 const variables = extractVariables(node.condition);
                 markVariablesAsUsed(variables);
+                validateBooleanExpression(node.condition, 'condición de do-while');
             }
         }
 
@@ -1668,6 +1599,8 @@ int main() {
             if (node.expression) {
                 const variables = extractVariables(node.expression);
                 markVariablesAsUsed(variables);
+                // VALIDAR OPERACIONES Y ASIGNACIONES
+                validateExpressionTypes(node.expression);
             }
         }
 
@@ -1677,26 +1610,297 @@ int main() {
             }
         }
 
+        // NUEVA FUNCIÓN: Validación estricta de compatibilidad de tipos
+        function checkStrictTypeCompatibility(identifier, expectedType, value) {
+            if (!value || typeof value !== 'string') return;
+
+            const cleanValue = value.toString().trim();
+
+            // Obtener el tipo de la expresión del lado derecho
+            const valueType = getExpressionType(cleanValue);
+
+            if (!areTypesCompatible(expectedType, valueType)) {
+                errors.push(`Error de tipo: No se puede asignar '${valueType}' a variable '${identifier}' de tipo '${expectedType}'`);
+            }
+        }
+
+        // NUEVA FUNCIÓN: Determinar el tipo de una expresión
+        function getExpressionType(expression) {
+            if (!expression || typeof expression !== 'string') return 'unknown';
+
+            const cleanExpr = expression.trim();
+
+            // Literales booleanos
+            if (cleanExpr === 'true' || cleanExpr === 'false') {
+                return 'bool';
+            }
+
+            // Literales enteros
+            if (/^\d+$/.test(cleanExpr)) {
+                return 'int';
+            }
+
+            // Literales decimales
+            if (/^\d*\.\d+([eE][+-]?\d+)?$/.test(cleanExpr) || /^\d+\.\d*([eE][+-]?\d+)?$/.test(cleanExpr)) {
+                return 'float';
+            }
+
+            // Literales de cadena
+            if (/^".*"$/.test(cleanExpr)) {
+                return 'string';
+            }
+
+            // Literales de carácter
+            if (/^'.*'$/.test(cleanExpr)) {
+                return 'char';
+            }
+
+            // Variable simple
+            if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cleanExpr)) {
+                if (symbolTable.has(cleanExpr)) {
+                    return symbolTable.get(cleanExpr).type;
+                } else if (!isKeywordOrSystemFunction(cleanExpr)) {
+                    return 'unknown';
+                }
+            }
+
+            // Expresiones con operadores
+            if (containsArithmeticOperators(cleanExpr)) {
+                return getArithmeticExpressionType(cleanExpr);
+            }
+
+            if (containsLogicalOperators(cleanExpr)) {
+                return 'bool';
+            }
+
+            if (containsComparisonOperators(cleanExpr)) {
+                return 'bool';
+            }
+
+            return 'unknown';
+        }
+
+        // NUEVA FUNCIÓN: Verificar compatibilidad entre tipos
+        function areTypesCompatible(targetType, sourceType) {
+            if (targetType === sourceType) return true;
+
+            // Casos específicos donde NO hay compatibilidad automática
+            const incompatiblePairs = [
+                // bool no es compatible con otros tipos básicos
+                ['bool', 'int'], ['int', 'bool'],
+                ['bool', 'float'], ['float', 'bool'],
+                ['bool', 'double'], ['double', 'bool'],
+                ['bool', 'string'], ['string', 'bool'],
+                ['bool', 'char'], ['char', 'bool'],
+
+                // string no es compatible con tipos numéricos
+                ['string', 'int'], ['int', 'string'],
+                ['string', 'float'], ['float', 'string'],
+                ['string', 'double'], ['double', 'string'],
+                ['string', 'char'], ['char', 'string'],
+
+                // char no es compatible con tipos numéricos (estricto)
+                ['char', 'int'], ['int', 'char'],
+                ['char', 'float'], ['float', 'char'],
+                ['char', 'double'], ['double', 'char']
+            ];
+
+            const pair = [targetType, sourceType];
+            return !incompatiblePairs.some(incompatible =>
+                incompatible[0] === pair[0] && incompatible[1] === pair[1]
+            );
+        }
+
+        // NUEVA FUNCIÓN: Validar expresiones booleanas
+        function validateBooleanExpression(expression, context) {
+            const exprType = getExpressionType(expression);
+            if (exprType !== 'bool' && exprType !== 'unknown') {
+                errors.push(`Error de tipo: ${context} debe ser de tipo bool, pero se encontró '${exprType}'`);
+            }
+        }
+
+        // NUEVA FUNCIÓN: Validar tipos en expresiones
+        function validateExpressionTypes(expression) {
+            if (!expression || typeof expression !== 'string') return;
+
+            // Detectar asignaciones
+            const assignmentMatch = expression.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+            if (assignmentMatch) {
+                const [, variable, value] = assignmentMatch;
+                if (symbolTable.has(variable)) {
+                    const varType = symbolTable.get(variable).type;
+                    checkStrictTypeCompatibility(variable, varType, value);
+
+                    // NUEVO: Validar operaciones dentro de la asignación
+                    validateArithmeticOperationsInExpression(value, variable);
+                }
+            }
+
+            // Detectar operaciones aritméticas mixtas
+            if (containsMixedTypeOperation(expression)) {
+                validateMixedTypeOperations(expression);
+            }
+        }
+
+        // NUEVA FUNCIÓN: Validar operaciones aritméticas en expresiones
+        function validateArithmeticOperationsInExpression(expression, contextVar = '') {
+            if (!expression || typeof expression !== 'string') return;
+
+            // Buscar operaciones como: variable + variable, variable + literal, etc.
+            const operationRegex = /([a-zA-Z_][a-zA-Z0-9_]*|\d+(?:\.\d+)?|"[^"]*")\s*([+\-*/%])\s*([a-zA-Z_][a-zA-Z0-9_]*|\d+(?:\.\d+)?|"[^"]*")/g;
+
+            let match;
+            while ((match = operationRegex.exec(expression)) !== null) {
+                const [fullMatch, leftOperand, operator, rightOperand] = match;
+
+                const leftType = getOperandType(leftOperand.trim());
+                const rightType = getOperandType(rightOperand.trim());
+
+                // Verificar si los tipos son compatibles para operaciones aritméticas
+                if (!areTypesCompatibleForArithmetic(leftType, rightType, operator)) {
+                    const contextMsg = contextVar ? ` en asignación a '${contextVar}'` : '';
+                    errors.push(`Error de tipo: No se puede realizar la operación '${leftType} ${operator} ${rightType}'${contextMsg}`);
+                }
+            }
+        }
+
+        // NUEVA FUNCIÓN: Obtener tipo de un operando
+        function getOperandType(operand) {
+            // Literal string
+            if (/^".*"$/.test(operand)) {
+                return 'string';
+            }
+
+            // Literal booleano
+            if (operand === 'true' || operand === 'false') {
+                return 'bool';
+            }
+
+            // Literal decimal
+            if (/^\d*\.\d+$/.test(operand)) {
+                return 'float';
+            }
+
+            // Literal entero
+            if (/^\d+$/.test(operand)) {
+                return 'int';
+            }
+
+            // Variable
+            if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(operand)) {
+                if (symbolTable.has(operand)) {
+                    return symbolTable.get(operand).type;
+                } else if (!isKeywordOrSystemFunction(operand)) {
+                    // Variable no declarada - ya se reporta en otro lugar
+                    return 'unknown';
+                }
+            }
+
+            return 'unknown';
+        }
+
+        // NUEVA FUNCIÓN: Verificar compatibilidad para operaciones aritméticas
+        function areTypesCompatibleForArithmetic(leftType, rightType, operator) {
+            // Operaciones prohibidas con string
+            if (leftType === 'string' || rightType === 'string') {
+                // String solo puede usar + con otro string (concatenación)
+                if (operator === '+' && leftType === 'string' && rightType === 'string') {
+                    return true;
+                }
+                // Cualquier otra operación con string es inválida
+                return false;
+            }
+
+            // Operaciones prohibidas con bool
+            if (leftType === 'bool' || rightType === 'bool') {
+                // Bool no puede participar en operaciones aritméticas
+                return false;
+            }
+
+            // Operaciones entre tipos numéricos (int, float, double) son válidas
+            const numericTypes = ['int', 'float', 'double', 'long', 'short'];
+            if (numericTypes.includes(leftType) && numericTypes.includes(rightType)) {
+                return true;
+            }
+
+            // Si algún tipo es unknown, no podemos validar
+            if (leftType === 'unknown' || rightType === 'unknown') {
+                return true;
+            }
+
+            return false;
+        }
+
+        // NUEVA FUNCIÓN: Detectar operaciones con tipos mixtos
+        function containsMixedTypeOperation(expression) {
+            return /[+\-*/%]/.test(expression) &&
+                (expression.includes('true') || expression.includes('false') ||
+                    /".+"/.test(expression));
+        }
+
+        // NUEVA FUNCIÓN: Validar operaciones con tipos mixtos
+        function validateMixedTypeOperations(expression) {
+            // Buscar operaciones entre bool y otros tipos
+            if (/(true|false)\s*[+\-*/%]\s*\d+/.test(expression) ||
+                /\d+\s*[+\-*/%]\s*(true|false)/.test(expression)) {
+                errors.push(`Error de tipo: No se pueden realizar operaciones aritméticas entre bool e int`);
+            }
+
+            // Buscar operaciones entre string y números
+            if (/"[^"]*"\s*[+\-*/%]\s*\d+/.test(expression) ||
+                /\d+\s*[+\-*/%]\s*"[^"]*"/.test(expression)) {
+                errors.push(`Error de tipo: No se pueden realizar operaciones aritméticas entre string y números`);
+            }
+
+            // Buscar operaciones entre bool y string
+            if (/(true|false)\s*[+\-*/%]\s*"[^"]*"/.test(expression) ||
+                /"[^"]*"\s*[+\-*/%]\s*(true|false)/.test(expression)) {
+                errors.push(`Error de tipo: No se pueden realizar operaciones aritméticas entre bool y string`);
+            }
+        }
+
+        // NUEVA FUNCIÓN: Obtener tipo de expresión aritmética
+        function getArithmeticExpressionType(expression) {
+            if (/\d*\.\d+/.test(expression)) return 'float';
+            if (/\d+/.test(expression)) return 'int';
+
+            // Verificar variables en la expresión
+            const variables = extractVariables(expression);
+            for (const varName of variables) {
+                if (symbolTable.has(varName)) {
+                    const varType = symbolTable.get(varName).type;
+                    if (varType === 'float' || varType === 'double') return 'float';
+                }
+            }
+
+            return 'int';
+        }
+
+        // FUNCIONES AUXILIARES NUEVAS
+        function containsArithmeticOperators(expression) {
+            return /[+\-*/%]/.test(expression);
+        }
+
+        function containsLogicalOperators(expression) {
+            return /&&|\|\||!/.test(expression);
+        }
+
+        function containsComparisonOperators(expression) {
+            return /==|!=|<=|>=|<|>/.test(expression);
+        }
+
         function extractVariables(expression) {
             if (!expression || typeof expression !== 'string') return [];
 
             const variables = [];
             let cleanExpression = expression;
 
-            // Remover strings entre comillas dobles
             cleanExpression = cleanExpression.replace(/"[^"]*"/g, '');
-
-            // Remover strings entre comillas simples
             cleanExpression = cleanExpression.replace(/'[^']*'/g, '');
-
-            // Remover comentarios
             cleanExpression = cleanExpression.replace(/\/\/.*$/g, '');
             cleanExpression = cleanExpression.replace(/\/\*.*?\*\//g, '');
-
-            // Remover declaraciones de tipos para evitar falsos positivos
             cleanExpression = cleanExpression.replace(/\b(int|float|double|char|bool|void|string|long|short|unsigned|signed|const|static|auto)\s+/g, '');
 
-            // Regex para encontrar identificadores
             const identifierRegex = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
             const matches = cleanExpression.match(identifierRegex) || [];
 
@@ -1744,72 +1948,6 @@ int main() {
                 /^\d+(\.\d+)?$/.test(identifier);
         }
 
-        function checkTypeCompatibility(identifier, expectedType, value) {
-            if (!value || typeof value !== 'string') return;
-
-            const valueStr = value.toString().trim();
-
-            switch (expectedType) {
-                case 'int':
-                    if (!/^\d+$/.test(valueStr)) {
-                        if (/^\d+\.\d+$/.test(valueStr)) {
-                            warnings.push(`Advertencia: Conversión implícita de float a int en '${identifier}'`);
-                        } else if (!symbolTable.has(valueStr) && !isComplexExpression(valueStr)) {
-                            const hasValidVariables = extractVariables(valueStr).every(v => symbolTable.has(v) || isKeywordOrSystemFunction(v));
-                            if (!hasValidVariables && !isComplexExpression(valueStr)) {
-                                errors.push(`Error: Tipo incompatible para variable '${identifier}'`);
-                            }
-                        }
-                    }
-                    break;
-
-                case 'float':
-                case 'double':
-                    if (!/^\d+(\.\d+)?$/.test(valueStr) &&
-                        !symbolTable.has(valueStr) &&
-                        !isComplexExpression(valueStr)) {
-                        const hasValidVariables = extractVariables(valueStr).every(v => symbolTable.has(v) || isKeywordOrSystemFunction(v));
-                        if (!hasValidVariables && !isNumericLiteral(valueStr)) {
-                            errors.push(`Error: Tipo incompatible para variable '${identifier}'`);
-                        }
-                    }
-                    break;
-
-                case 'bool':
-                    if (!['true', 'false', '0', '1'].includes(valueStr) &&
-                        !symbolTable.has(valueStr) &&
-                        !isComplexExpression(valueStr)) {
-                        const hasValidVariables = extractVariables(valueStr).every(v => symbolTable.has(v) || isKeywordOrSystemFunction(v));
-                        if (!hasValidVariables) {
-                            errors.push(`Error: Tipo incompatible para variable '${identifier}'`);
-                        }
-                    }
-                    break;
-
-                case 'char':
-                    if (!/^'.*'$/.test(valueStr) &&
-                        !symbolTable.has(valueStr) &&
-                        !isComplexExpression(valueStr)) {
-                        errors.push(`Error: Tipo incompatible para variable '${identifier}'`);
-                    }
-                    break;
-            }
-        }
-
-        function isNumericLiteral(value) {
-            return /^\d+(\.\d+)?([eE][+-]?\d+)?$/.test(value) ||
-                /^0[xX][0-9a-fA-F]+$/.test(value) ||
-                /^0[0-7]+$/.test(value);
-        }
-
-        function isComplexExpression(value) {
-            return /[+\-*/%<>=!&|]/.test(value) ||
-                value.includes('(') ||
-                value.includes('[') ||
-                value.includes('factorial') ||
-                /\b\d+\.\d+\b/.test(value);
-        }
-
         function getDefaultValue(dataType) {
             switch (dataType) {
                 case 'int':
@@ -1855,7 +1993,7 @@ int main() {
         };
     }, []);
 
-// Generación de código (misma que antes)
+    // Generación de código (mismo que antes)
     const codeGeneration = useCallback((parseTree, symbolTable) => {
         let assemblyCode = [];
         let jsCode = [];
@@ -1983,7 +2121,6 @@ int main() {
         <div className="space-y-4">
             <h3 className="text-lg font-semibold text-green-600">Análisis Sintáctico - Árbol de Sintaxis</h3>
 
-            {/* Mostrar errores sintácticos primero y de forma prominente */}
             {compilationResult?.syntaxErrors?.length > 0 && (
                 <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
                     <div className="flex items-center mb-3">
@@ -2152,12 +2289,11 @@ int main() {
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
                     <h1 className="text-3xl font-bold flex items-center gap-2">
-                        Compilador Grupo #1
+                        Compilador Grupo #1 - Validación de Tipos Mejorada
                     </h1>
                     <p className="text-blue-100 mt-2">
-                        Análisis Léxico • Sintáctico • Semántico • Generación de Código
+                        Análisis Léxico • Sintáctico • Semántico Estricto • Generación de Código
                     </p>
-
                 </div>
 
                 <div className="p-6">
@@ -2167,106 +2303,41 @@ int main() {
                             <h2 className="text-xl font-semibold">Editor de Código Fuente C++</h2>
                             <div className="flex gap-3">
                                 <button
-                                    onClick={() => setSourceCode(`#include <iostream>
-using namespace std;
-
-int suma(int a int b)  // Falta una coma
-{
-    return a + b
-}  // Falta punto y coma en return, y mal uso de llave
-
-int main() 
-{
-    int x = 10  // Falta punto y coma
-    int y = 5;
-    int resultado = suma(x, y;  // Falta paréntesis de cierre
-    cout << "La suma es: " << resultado << endl;
-    if (resultado > 10)
-        cout << "El resultado es mayor que 10";
-    else
-        cout << "El resultado es 10 o menor";
-    return 0;
+                                    onClick={() => setSourceCode(`int prueba(){
+    int a, suma;
+    string b;
+    suma = a + b;  // Error: int + string incompatible
 }`)}
                                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                                 >
-                                    📝 Código con Errores
+                                    🧪 Tu Ejemplo
                                 </button>
                                 <button
-                                    onClick={() => setSourceCode(`/* Programa de ejemplo para análisis completo del compilador
-   Incluye múltiples estructuras y operaciones */
+                                    onClick={() => setSourceCode(`/* Código correcto con tipos compatibles */
  
-// Función para calcular factorial
-int factorial(int n) {
-    if (n <= 1) {
-        return 1;
-    } else {
-        return n * factorial(n - 1);
-    }
-}
- 
-// Función principal
 int main() {
-    // Declaración de variables de diferentes tipos
     int edad = 25;
     float salario = 2500.75;
     bool esAdulto = true;
-    int contador = 0;
-    int numero = 5;
-    float promedio = 0.0;
-    int suma = 0;
-   
-    // Operaciones aritméticas
-    int dobleEdad = edad * 2;
-    float salarioAnual = salario * 12;
-   
-    // Estructura condicional if-else
-    if (edad >= 18 && esAdulto) {
-        printf("Es mayor de edad\\n");
-        salario = salario + 500.0; // Incremento salarial
-    } else {
-        printf("Es menor de edad\\n");
-        salario = salario * 0.8; // Reducción salarial
-    }
-   
-    // Ciclo while para contar
-    while (contador < 5) {
-        suma = suma + contador;
-        contador = contador + 1;
-    }
-   
-    // Operaciones lógicas y comparaciones
-    if (suma > 10 || contador == 5) {
-        printf("Condición cumplida\\n");
-    }
-   
-    // Ciclo for para calcular promedio
-    for (int i = 1; i <= numero; i++) {
-        promedio = promedio + i;
-    }
-    promedio = promedio / numero;
-   
-    // Más operaciones aritméticas
-    int resultado = factorial(numero);
-    bool esPar = (numero % 2) == 0;
-   
-    // Asignaciones y operaciones combinadas
-    edad = edad + 1;
-    salario = salario - 100.0;
-   
-    // Condicional anidada
-    if (resultado > 100) {
-        if (esPar) {
-            printf("Número par con factorial grande\\n");
-        } else {
-            printf("Número impar con factorial grande\\n");
-        }
-    }
-   
+    string nombre = "Juan";
+    
+    // Asignaciones correctas:
+    int otraEdad = edad;           // int a int ✓
+    float otroSalario = salario;   // float a float ✓
+    bool otroEstado = esAdulto;    // bool a bool ✓
+    string otroNombre = nombre;    // string a string ✓
+    
+    // Operaciones correctas:
+    int sumaEdades = edad + 5;     // int + int ✓
+    float salarioTotal = salario * 12.0; // float * float ✓ 
+    bool resultado = esAdulto && true;    // bool && bool ✓
+    string nombreCompleto = nombre + " Perez"; // string + string ✓
+    
     return 0;
 }`)}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                                 >
-                                    🔍 Analizar Este Código
+                                    ✅ Código Correcto
                                 </button>
                                 <button
                                     onClick={handleCompile}
@@ -2283,7 +2354,6 @@ int main() {
                             className="w-full h-96 p-4 border border-gray-300 rounded-lg font-mono text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Escribe tu código C++ aquí..."
                         />
-
                     </div>
 
                     {/* Tabs de Análisis */}
@@ -2301,9 +2371,9 @@ int main() {
                                     id: 'semantico',
                                     label: 'Análisis Semántico',
                                     icon: Info,
-                                    desc: 'Validación Semántica'
+                                    desc: 'Validación de Tipos'
                                 },
-                                {id: 'codigo', label: 'Generación de Código', icon: Code, desc: 'Assembly/JS'}
+                                {id: 'codigo', label: 'Generación de Código', icon: Code, desc: 'Assembly'}
                             ].map(({id, label, icon: Icon, desc}) => (
                                 <button
                                     key={id}
@@ -2340,14 +2410,14 @@ int main() {
                                     <>
                                         <AlertCircle className="w-5 h-5 text-red-600"/>
                                         <span className="font-semibold text-red-800">
-                      Compilación con errores
+                      Compilación con errores - Validación de tipos estricta activada
                     </span>
                                     </>
                                 ) : (
                                     <>
                                         <CheckCircle className="w-5 h-5 text-green-600"/>
                                         <span className="font-semibold text-green-800">
-                      Compilación exitosa
+                      Compilación exitosa - Todos los tipos son compatibles
                     </span>
                                     </>
                                 )}
@@ -2378,7 +2448,7 @@ int main() {
                                     <div className={`font-medium ${
                                         compilationResult.semanticErrors?.length > 0 ? 'text-red-800' : 'text-green-800'
                                     }`}>
-                                        Errores Semánticos
+                                        Errores de Tipos
                                     </div>
                                     <div className={`${
                                         compilationResult.semanticErrors?.length > 0 ? 'text-red-600' : 'text-green-600'
@@ -2393,15 +2463,8 @@ int main() {
                             </div>
 
                             <div className="mt-3 text-xs text-gray-500">
-                                <strong>Símbolos detectados:</strong> {
-                                compilationResult.symbolTable?.filter(s => s.type === 'function').length || 0
-                            } funciones, {
-                                compilationResult.symbolTable?.filter(s => s.type === 'class').length || 0
-                            } clases, {
-                                compilationResult.symbolTable?.filter(s => s.type === 'namespace').length || 0
-                            } namespaces, {
-                                compilationResult.symbolTable?.filter(s => !['function', 'class', 'namespace'].includes(s.type)).length || 0
-                            } variables
+                                <strong>Validación mejorada:</strong> Se detectan incompatibilidades entre int↔bool,
+                                string↔números, operaciones mixtas prohibidas, y asignaciones de tipos incompatibles.
                             </div>
                         </div>
                     )}
