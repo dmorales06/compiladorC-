@@ -2322,13 +2322,13 @@ const Compiler = () => {
                                 <button
                                     onClick={() => setSourceCode(`int main() {
     int a = 5;
-    float b = 2.5;
-    int resultado = a + b;  // ¿Error? float a int con pérdida
+    float b = 2.0;
+    int resultado = a / b;  // int / float = float → int (pérdida)
     return 0;
 }`)}
                                     className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                                 >
-                                    ⚠️ Pérdida de Precisión
+                                    🔢 int / float
                                 </button>
                                 <button
                                     onClick={() => setSourceCode(`/* Código correcto con tipos compatibles */
