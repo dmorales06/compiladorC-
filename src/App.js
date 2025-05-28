@@ -2320,39 +2320,111 @@ const Compiler = () => {
                             <h2 className="text-xl font-semibold">Editor de Código Fuente C++</h2>
                             <div className="flex gap-3">
                                 <button
-                                    onClick={() => setSourceCode(`int main() {
+                                    onClick={() => setSourceCode(`int suma(int a1 int b1)  // Falta una coma
+{
+    return a1 + b1
+}  // Falta punto y coma en return, y mal uso de llave
+
+int main() {
     int a = 5;
     float b = 2.0;
     int resultado = a / b;  // int / float = float → int (pérdida)
+
+    for (int i = 0; i < 10; i++) {
+        suma += i;
+    // Falta la llave de cierre del main
+    
+    int x = 5;
+    float y = "hola";  // ERROR: asignación incompatible, string a float
+
+    int f = 5;         // a es int
+    float z = 2.0;     // b es float  
+    int resultado = f / z;  // int / float = float → int
+
+
+
+    cout << "Hola mundo" << endl // Falta punto y coma para finalizar la impresion
     return 0;
 }`)}
-                                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
+                                    className="bg-orange-400 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                                 >
-                                    🔢 int / float
+                                    ❌ Código con errores
                                 </button>
                                 <button
-                                    onClick={() => setSourceCode(`/* Código correcto con tipos compatibles */
+                                    onClick={() => setSourceCode(`
+  /* Programa de ejemplo para análisis completo del compilador
+   Incluye múltiples estructuras y operaciones */
  
+// Función para calcular factorial
+int factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    } else {
+        return n * factorial(n - 1);
+    }
+}
+ 
+// Función principal
 int main() {
+    // Declaración de variables de diferentes tipos
     int edad = 25;
     float salario = 2500.75;
     bool esAdulto = true;
-    string nombre = "Juan";
-    
-    // Asignaciones correctas:
-    int otraEdad = edad;           // int a int ✓
-    float otroSalario = salario;   // float a float ✓
-    bool otroEstado = esAdulto;    // bool a bool ✓
-    string otroNombre = nombre;    // string a string ✓
-    
-    // Operaciones correctas:
-    int sumaEdades = edad + 5;     // int + int ✓
-    float salarioTotal = salario * 12.0; // float * float ✓ 
-    bool resultado = esAdulto && true;    // bool && bool ✓
-    string nombreCompleto = nombre + " Perez"; // string + string ✓
-    
+    int contador = 0;
+    int numero = 5;
+    float promedio = 0.0;
+    int suma = 0;
+   
+    // Operaciones aritméticas
+    int dobleEdad = edad * 2;
+    float salarioAnual = salario * 12;
+   
+    // Estructura condicional if-else
+    if (edad >= 18 && esAdulto) {
+        printf("Es mayor de edad\\n");
+        salario = salario + 500.0; // Incremento salarial
+    } else {
+        printf("Es menor de edad\\n");
+        salario = salario * 0.8; // Reducción salarial
+    }
+   
+    // Ciclo while para contar
+    while (contador < 5) {
+        suma = suma + contador;
+        contador = contador + 1;
+    }
+   
+    // Operaciones lógicas y comparaciones
+    if (suma > 10 || contador == 5) {
+        printf("Condición cumplida\\n");
+    }
+   
+    // Ciclo for para calcular promedio
+    for (int i = 1; i <= numero; i++) {
+        promedio = promedio + i;
+    }
+    promedio = promedio / numero;
+   
+    // Más operaciones aritméticas
+    int resultado = factorial(numero);
+    bool esPar = true;
+   
+    // Asignaciones y operaciones combinadas
+    edad = edad + 1;
+    salario = salario - 100.0;
+   
+    // Condicional anidada
+    if (resultado > 100) {
+        if (esPar) {
+            printf("Número par con factorial grande\\n");
+        } else {
+            printf("Número impar con factorial grande\\n");
+        }
+    }
+   
     return 0;
-}`)}
+}
+  `)}
                                     className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                                 >
                                     ✅ Código Correcto
