@@ -33,16 +33,20 @@ const Compiler = () => {
         ];
 
         const delimiters = ['(', ')', '{', '}', '[', ']', ';', ',', '.', '"', "'"];
+        //dividimos el código por líneas con
+        //El código se divide línea por línea para facilitar el recorrido y análisis de cada carácter.
         const lines = code.split('\n');
         let tokenId = 1;
         let inBlockComment = false;
 
+
+        //recorremos linea por linea del codgo ingresado
         lines.forEach((line, lineNum) => {
             let i = 0;
-
+            //recoremos cada caracter con este while
             while (i < line.length) {
                 const char = line[i];
-
+                //verifica si esta dentro de un comentario el bloque 
                 if (inBlockComment) {
                     if (char === '*' && line[i + 1] === '/') {
                         inBlockComment = false;
@@ -52,18 +56,18 @@ const Compiler = () => {
                     }
                     continue;
                 }
-
+                //verificamos is hay espacios en blanco  o tabulaciones
                 if (/\s/.test(char)) {
                     i++;
                     continue;
                 }
 
                 let startColumn = i;
-
+                //comentarios de una linea   //
                 if (char === '/' && line[i + 1] === '/') {
                     break;
                 }
-
+                //comentarios de un bloque /* */
                 if (char === '/' && line[i + 1] === '*') {
                     inBlockComment = true;
                     i += 2;
@@ -86,7 +90,7 @@ const Compiler = () => {
                     });
                     continue;
                 }
-
+                        //verificamos si hay operadores
                 let operatorFound = false;
                 for (const op of operators) {
                     if (line.substr(i, op.length) === op) {
@@ -104,7 +108,7 @@ const Compiler = () => {
                 }
 
                 if (operatorFound) continue;
-
+                //verificamos si hay delimitadores
                 if (delimiters.includes(char)) {
                     if (char === '"') {
                         let stringContent = '"';
@@ -133,6 +137,7 @@ const Compiler = () => {
                             column: startColumn + 1
                         });
                     }
+                    //cadenas de texto
                     else if (char === "'") {
                         let charContent = "'";
                         i++;
@@ -188,7 +193,7 @@ const Compiler = () => {
         });
 
         return tokens;
-
+        // clasificamos si es palabra clave, número, identificador, etc.
         function categorizeToken(lexeme, id, line, column) {
             if (keywords.includes(lexeme)) {
                 return {id, lexeme, type: 'KEYWORD', line, column};
@@ -219,23 +224,23 @@ const Compiler = () => {
 
         let current = 0;
         const errors = [];
-
+            //Devuelve el token en la posición actual (current) o con un desplazamiento (offset) sin avanzar.
         function peek(offset = 0) {
             const index = current + offset;
             return index < tokens.length ? tokens[index] : null;
         }
-
+        //Devuelve el token actual y mueve el puntero al siguiente.
         function advance() {
             if (current < tokens.length) {
                 return tokens[current++];
             }
             return null;
         }
-
+        //Verifica si ya no quedan tokens por analizar
         function isAtEnd() {
             return current >= tokens.length;
         }
-
+        //Ignora los tokens marcados como comentarios (COMMENT_START, COMMENT_END).
         function skipComments() {
             while (!isAtEnd()) {
                 const token = peek();
@@ -247,17 +252,18 @@ const Compiler = () => {
                 break;
             }
         }
-
+        //	Verifica si el token actual es de un tipo específico (KEYWORD, IDENTIFIER, etc.).
         function match(type) {
             const token = peek();
             return token && token.type === type;
         }
-
+        //Verifica si el lexeme actual coincide con uno de los proporcionados.
         function matchLexeme(...lexemes) {
             const token = peek();
             return token && lexemes.includes(token.lexeme);
         }
-
+            //lanza un error si no se cumple una regla 
+            //Verifica si el siguiente token es el esperado; si no, registra un error. Avanza si es correcto.
         function expect(expected, errorMessage) {
             const token = peek();
             if (!token) {
@@ -280,7 +286,8 @@ const Compiler = () => {
             advance();
             return true;
         }
-
+        //Salta tokens hasta encontrar un punto seguro (como ; o {) para continuar después de un error.
+            //intenta 
         function synchronize() {
             while (!isAtEnd()) {
                 const token = peek();
@@ -294,6 +301,7 @@ const Compiler = () => {
             }
         }
 
+        //El siguiente bloque envuelve todo el análisis con try/catch para detectar errores globales:
         try {
             while (!isAtEnd()) {
                 skipComments();
@@ -312,12 +320,12 @@ const Compiler = () => {
         } catch (error) {
             errors.push(`Error fatal en análisis sintáctico: ${error.message}`);
         }
-
+        //Analizamos las declaraciones a nivel superior (class, int main etc)
         function parseTopLevelStatement() {
             skipComments();
-            if (isAtEnd()) return null;
+            if (isAtEnd()) return null;// Finaliza si no hay más tokens
 
-            const token = peek();
+            const token = peek();// obtenemos el token actual
             if (!token) return null;
 
             if (token.type === 'PREPROCESSOR') {
@@ -372,7 +380,7 @@ const Compiler = () => {
 
             return node;
         }
-
+        // Esta función analiza directivas using
         function parseUsingDirective() {
             advance(); // using
 
@@ -2010,11 +2018,15 @@ const Compiler = () => {
         };
     }, []);
 
-    // Generación de código (mismo que antes)
+    // Generación de código 
+    //genera código de salida a partir del árbol de sintaxis
     const codeGeneration = useCallback((parseTree, symbolTable) => {
+        //arreglo que almacenará líneas de código Assembly.
         let assemblyCode = [];
+        //arreglo para construir código JavaScript
         let jsCode = [];
 
+        //Recorre cada símbolo en la tabla y agrega su definición en formato NASM
         assemblyCode.push('.data');
         symbolTable.forEach(symbol => {
             if (symbol.type === 'int') {
@@ -2026,6 +2038,7 @@ const Compiler = () => {
             }
         });
 
+        //bloque de salida Assembly
         assemblyCode.push('');
         assemblyCode.push('.text');
         assemblyCode.push('    global _start');
@@ -2036,7 +2049,7 @@ const Compiler = () => {
         assemblyCode.push('    int 0x80');
 
         jsCode.push('');
-
+//Se genera una función vacía por cada función en la tabla de símbolos.
         const functions = symbolTable.filter(s => s.type === 'function');
         functions.forEach(func => {
             jsCode.push(`function ${func.name}() {`);
@@ -2046,7 +2059,7 @@ const Compiler = () => {
         });
 
         jsCode.push('function main() {');
-
+//Declara variables con sus valores si están definidos.
         const variables = symbolTable.filter(s => s.type !== 'function' && s.type !== 'class');
         variables.forEach(symbol => {
             if (symbol.value !== null && symbol.value !== undefined) {
@@ -2071,6 +2084,7 @@ const Compiler = () => {
         };
     }, []);
 
+    //Se encarga de ejecutar todo el proceso de compilación paso a paso
     const handleCompile = () => {
         const tokens = lexicalAnalysis(sourceCode);
         const {parseTree, errors: syntaxErrors} = syntacticAnalysis(tokens);
@@ -2306,7 +2320,7 @@ const Compiler = () => {
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
                     <h1 className="text-3xl font-bold flex items-center gap-2">
-                        Compilador Grupo #1 - Validación de Tipos Mejorada
+                        Compilador Grupo #1 || C+o-
                     </h1>
                     <p className="text-blue-100 mt-2">
                         Análisis Léxico • Sintáctico • Semántico Estricto • Generación de Código
